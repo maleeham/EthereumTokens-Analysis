@@ -28,6 +28,26 @@ message("# of outlier rows:", nrow(outliers))
 
 ```
 
+```
+to remove outliers, we will create outlier buyers and outlier sellers table first and then take the sub table as the correct data without the outliers
+
+```
+```{r}
+buyer.outliers<- c(outliers$Buyer)
+buyer.outliers.table <- as.data.frame(table(buyer.outliers))
+buyer.outliers.table
+
+seller.outliers<- c(outliers$Seller)
+seller.outliers.table<-as.data.frame(table(seller.outliers))
+seller.outliers.table
+
+```
+
+```{r}
+preprocessed.data<- subset(raw_data,TokenAmount<=Total.circulation.amount)
+preprocessed.data
+```
+
 ```{r}
 
 ```
