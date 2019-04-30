@@ -1,6 +1,9 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
@@ -9,7 +12,7 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 ```{r}
 raw_data <- read.csv(file='networkloopringTX.txt',header=F,sep=' ')
-colnames(raw_data)<-c("Seller","Buyer","TimeStamp","TokenAmount")
+colnames(raw_data)<-c("Buyer","Seller","TimeStamp","TokenAmount")
 nrow(raw_data)
 ```
 
@@ -48,12 +51,221 @@ preprocessed.data<- subset(raw_data,TokenAmount<=Total.circulation.amount)
 preprocessed.data
 ```
 
+Summary of pre-processed data:
 ```{r}
+summary(preprocessed.data)
+preprocessed.data
+```
+Printing/Extracting buyers from preprocessed data for understanding: This set of buyers would not include the buyers who transactions were apparently spurious (outlier data)
+```{r}
+Buyers<-c(preprocessed.data$Buyer)
+```
+
+
+match the buyer seller pairs and get the frequencies
+
+```{r}
+library(plyr)
+BuyerSellerPairFrequencies<-ddply(preprocessed.data, .(preprocessed.data$Buyer, preprocessed.data$Seller), nrow)
+names(BuyerSellerPairFrequencies)<-c("Buyer", "Seller", "Frequency")
+BuyerSellerPairFrequencies #this is the table with buyer seller pairs and the frequencies
+
+
 
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+Summary of data to be fitted in the distribution
+```{r}
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+summary(BuyerSellerPairFrequencies)
+```
+
+For plotting , so the plots will be Pair VS Frequency 
+```{r}
+BuyerSellerPairFrequencies$Pair<-paste(BuyerSellerPairFrequencies$Buyer,"-",BuyerSellerPairFrequencies$Seller)
+
+BuyerSellerPairFrequencies
+
+
+```
+```{r}
+summary(BuyerSellerPairFrequencies)
+message("Variance:" , var(BuyerSellerPairFrequencies$Frequency))
+
+message("Standard Deviation:" , sd(BuyerSellerPairFrequencies$Frequency))
+
+
+```
+```{r}
+BuyerSellerPairFrequencies$PairID <- seq.int(nrow(BuyerSellerPairFrequencies))
+BuyerSellerPairFrequencies
+
+
+```
+
+```{r}
+freq_pairs<-table(BuyerSellerPairFrequencies$Frequency)
+
+```
+
+```{r}
+#attach(BuyerSellerPairFrequencies)
+newdata<-BuyerSellerPairFrequencies[order(-BuyerSellerPairFrequencies$Frequency),]
+freq_twenty<-head(newdata,1000)
+freq_twenty
+
+
+```
+
+```{r}
+y_vals<-freq_twenty$Frequency
+x_vals<-freq_twenty$PairID
+barplot(y_vals,names.arg = x_vals, main="Histogram of Buyer-Seller Pair", width = 2)
+```
+
+```{r}
+#hist(freq_twenty$Frequency)
+y_vals<-freq_twenty$Frequency
+x_vals<-freq_twenty$PairID
+barplot(y_vals, main="Histogram of Buyer-Seller Pair", width = 2)
+
+
+
+```
+
+```{r}
+library(MASS)
+fit<- fitdistr(freq_twenty$Frequency, densfun = "normal")
+fit
+
+hist(freq_twenty$Frequency, pch=20, breaks=25, prob=TRUE, main="Frequency Distribution fitting normal curve", xlab="Frequency")
+curve(dnorm(x, fit$estimate[1], fit$estimate[2]), col="red", lwd=2, add=T)
+```
+```{r}
+library(MASS)
+fit<- fitdistr(freq_twenty$Frequency, densfun = "log-normal")
+fit
+
+hist(freq_twenty$Frequency, pch=20, breaks=25, prob=TRUE, main="Frequency Distribution fitting log-normal curve", xlab="Frequency")
+curve(dnorm(x, fit$estimate[1], fit$estimate[2]), col="red", lwd=2, add=T)
+```
+```{r}
+fit<- fitdistr(freq_twenty$Frequency, "exponential")
+ks.test(freq_twenty$Frequency, "pexp", fit$estimate)
+
+hist(freq_twenty$Frequency, freq = FALSE, breaks = 100, xlim = c(0, quantile(freq_twenty$Frequency, 0.99)),main="Frequency Distribution fitting exponential", xlab="Frequency")
+curve(dexp(x, rate = fit$estimate), from = 0, col = "red", add = TRUE)
+
+```
+```{r}
+summary(freq_twenty)
+message("Variance:" , var(freq_twenty$Frequency))
+
+message("Standard Deviation:" , sd(freq_twenty$Frequency))
+```
+```{r}
+preprocessed.data$TokenAmount<-(preprocessed.data$TokenAmount)/(10^18)
+#new1data<-select(preprocessed.data, Buyer, TimeStamp,TokenAmount)
+
+Time<-as.Date(as.POSIXct(preprocessed.data$TimeStamp, origin="1970-01-01"))
+
+
+preprocessed.data$TimeStamp<-Time
+preprocessed.data
+```
+
+```{r}
+# Loading
+library("readxl")
+# xlsx files
+my_data <- read_excel("Loopring_CoinMarketCap.xlsx")
+colnames(my_data)<-c("TimeStamp","Open","High", "Low", "Close","Volume","MarketCap")
+my_data$TimeStamp<-as.Date(my_data$TimeStamp,"%d%B%Y")
+my_data$MarketCap<-as.double(my_data$MarketCap)
+my_data
+```
+
+```{r}
+preprocessed.data <- preprocessed.data[order( -preprocessed.data$TokenAmount),] 
+preprocessed.data
+```
+
+```{r}
+top_buyer<-head(preprocessed.data, 100)
+top_buyer
+```
+
+```{r}
+top_buyer$Seller<-NULL
+top_buyer
+```
+
+```{r}
+my_data$Open<-NULL
+my_data$High<-NULL
+my_data$Low<-NULL
+my_data$Close<-NULL
+
+my_data
+```
+
+```{r}
+TopBuyerData<-join(top_buyer, my_data)  
+
+
+TopBuyerData
+```
+
+```{r}
+TopBuyerData$percentage<-(TopBuyerData$TokenAmount/TopBuyerData$MarketCap)*100
+
+```
+
+```{r}
+TopBuyerData<- subset(TopBuyerData,percentage<100)
+
+TopBuyerData
+```
+
+```{r}
+TopUniqueBuyers<-unique(TopBuyerData)
+
+
+```
+
+```{r}
+cor.test(TopUniqueBuyers$TokenAmount,TopUniqueBuyers$MarketCap, method = "pearson")
+
+```
+
+```{r}
+linearMod <- lm(TokenAmount ~ MarketCap, data=TopUniqueBuyers)  # build linear regression model on full data
+linearMod
+```
+
+```{r}
+summary(linearMod)
+
+```
+
+```{r}
+plot(linearMod)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,156 @@
+---
+title: "VeChain Transactions"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+
+```{r}
+raw_data <- read.csv(file='networkvechainTX.txt',header=F,sep=' ')
+colnames(raw_data)<-c("Buyer","Seller","TimeStamp","TokenAmount")
+nrow(raw_data)
+```
+```{r}
+summary(raw_data)
+```
+
+```{r}
+Total.circulation.amount <-55454734800* 10^18
+Total.circulation.amount
+```
+```{r}
+outliers <- subset(raw_data,TokenAmount>Total.circulation.amount)
+message("# of outlier rows:", nrow(outliers))
+```
+```{r}
+buyer.outliers<- c(outliers$Buyer)
+buyer.outliers.table <- as.data.frame(table(buyer.outliers))
+
+
+seller.outliers<- c(outliers$Seller)
+seller.outliers.table<-as.data.frame(table(seller.outliers))
+
+```
+```{r}
+preprocessed.data<- subset(raw_data,TokenAmount<=Total.circulation.amount)
+preprocessed.data
+```
+```{r}
+summary(preprocessed.data)
+```
+```{r}
+library(plyr)
+BuyerSellerPairFrequencies<-ddply(preprocessed.data, .(preprocessed.data$Buyer, preprocessed.data$Seller), nrow)
+names(BuyerSellerPairFrequencies)<-c("Buyer", "Seller", "Frequency")
+BuyerSellerPairFrequencies #this is the table with buyer seller pairs and the frequencies
+```
+
+```{r}
+summary(BuyerSellerPairFrequencies)
+```
+```{r}
+BuyerSellerPairFrequencies$Pair<-paste(BuyerSellerPairFrequencies$Buyer,"-",BuyerSellerPairFrequencies$Seller)
+BuyerSellerPairFrequencies
+```
+
+```{r}
+summary(BuyerSellerPairFrequencies)
+message("Variance:" , var(BuyerSellerPairFrequencies$Frequency))
+#message("Mode:" , mode(BuyerSellerPairFrequencies$Frequency))
+message("Standard Deviation:" , sd(BuyerSellerPairFrequencies$Frequency))
+```
+```{r}
+x<-BuyerSellerPairFrequencies$Frequency
+library(MASS)
+hist(x, main="Frequency Pair Distribution",
+xlab="Frequencies",
+ylab = "Number of pairs", col="lightblue",freq = FALSE, breaks = 500, xlim = c(0, quantile(x, 0.99)))
+fit<- fitdistr(x, "exponential")
+curve(dexp(x, rate = fit$estimate), from = 0, col = "red", add = TRUE, lwd=2)
+```
+```{r}
+summary(BuyerSellerPairFrequencies)
+message("Variance:" , var(x))
+
+message("Standard Deviation:" , sd(x))
+
+```
+```{r}
+preprocessed.data
+
+
+```
+```{r}
+preprocessed.data$TokenAmount<-(preprocessed.data$TokenAmount)/(10^18)
+Time<-as.Date(as.POSIXct(preprocessed.data$TimeStamp, origin="1970-01-01"))
+
+
+preprocessed.data$TimeStamp<-Time
+preprocessed.data
+```
+```{r}
+library("readxl")
+# xlsx files
+my_data <- read_excel("Icon_CoinMarketCap.xlsx")
+colnames(my_data)<-c("TimeStamp","Open","High", "Low", "Close","Volume","MarketCap")
+my_data$TimeStamp<-as.Date(my_data$TimeStamp,"%d%B%Y")
+my_data$MarketCap<-as.double(my_data$MarketCap)
+my_data
+```
+```{r}
+new_data <- preprocessed.data[order( -preprocessed.data$TokenAmount),] 
+new_data
+```
+```{r}
+top_buyer<-head(new_data, 150)
+top_buyer$Seller<-NULL
+top_buyer
+```
+```{r}
+my_data$Open<-NULL
+my_data$High<-NULL
+my_data$Low<-NULL
+my_data$Close<-NULL
+my_data
+```
+```{r}
+TopBuyerData<-join(top_buyer, my_data)  
+TopBuyerData <- na.omit(TopBuyerData)
+BuyerData <- aggregate(TokenAmount ~ Buyer + TimeStamp + Volume + MarketCap, data=TopBuyerData, FUN=sum)
+BuyerData
+```
+```{r}
+BuyerData$percentage<-(BuyerData$TokenAmount/BuyerData$MarketCap)*100
+BuyerData<- subset(BuyerData,percentage<100)
+BuyerData
+```
+```{r}
+cor.test(BuyerData$TokenAmount,BuyerData$MarketCap, method = "pearson")
+```
+```{r}
+linearMod <- lm(TokenAmount ~ MarketCap, data=BuyerData)  # build linear regression model on full data
+linearMod
+```
+```{r}
+summary(linearMod)
+```
+```{r}
+modelSummary <- summary(linearMod)  # capture model summary as an object
+modelCoeffs <- modelSummary$coefficients  # model coefficients
+beta.estimate <- modelCoeffs["MarketCap", "Estimate"]  # get beta estimate for speed
+std.error <- modelCoeffs["MarketCap", "Std. Error"]  # get std.error for speed
+t_value <- beta.estimate/std.error  # calc t statistic
+p_value <- 2*pt(-abs(t_value), df=nrow(BuyerData)-ncol(BuyerData))  # calc p Value
+f_statistic <- linearMod$fstatistic[1]  # fstatistic
+f <- summary(linearMod)$fstatistic  # parameters for model p-value calc
+model_p <- pf(f[1], f[2], f[3], lower=FALSE)
+#t_value
+p_value
+#f_statistic
+f
+
+#model_p
+```
+
