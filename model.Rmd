@@ -1,0 +1,129 @@
+---
+title: "Model"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+ chunk like this:
+
+```{r }
+
+preprocessed.data$TokenAmount<-(preprocessed.data$TokenAmount)/(10^18)
+Time<-as.Date(as.POSIXct(new1data$TimeStamp, origin="1970-01-01"))
+preprocessed.data$TimeStamp<-Time
+preprocessed.data
+
+
+```
+```{r}
+preprocessed.data$TokenAmount<-(preprocessed.data$TokenAmount)/(10^18)
+new1data<-select(preprocessed.data, Buyer, TimeStamp,TokenAmount)
+
+Time<-as.Date(as.POSIXct(new1data$TimeStamp, origin="1970-01-01"))
+
+
+preprocessed.data$TimeStamp<-Time
+preprocessed.data
+```
+
+```{r}
+# Loading
+library("readxl")
+# xlsx files
+my_data <- read_excel("Loopring_CoinMarketCap.xlsx")
+colnames(my_data)<-c("TimeStamp","Open","High", "Low", "Close","Volume","MarketCap")
+my_data$TimeStamp<-as.Date(my_data$TimeStamp,"%d%B%Y")
+my_data$MarketCap<-as.double(my_data$MarketCap)
+my_data
+```
+
+
+```{r}
+preprocessed.data <- preprocessed.data[order( -preprocessed.data$TokenAmount),] 
+preprocessed.data
+
+
+```
+```{r}
+top_buyer<-head(preprocessed.data, 100)
+top_buyer
+
+```
+
+```{r}
+top_buyer$Seller<-NULL
+top_buyer
+```
+
+```{r}
+
+my_data$Open<-NULL
+my_data$High<-NULL
+my_data$Low<-NULL
+my_data$Close<-NULL
+
+my_data
+```
+
+```{r}
+
+  
+  
+TopBuyerData<-join(top_buyer, my_data)  
+
+
+TopBuyerData
+```
+```{r}
+TopBuyerData$percentage<-(TopBuyerData$TokenAmount/TopBuyerData$MarketCap)*100
+
+
+```
+```{r}
+TopBuyerData<- subset(TopBuyerData,percentage<100)
+
+TopBuyerData
+```
+```{r}
+TopUniqueBuyers<-unique(TopBuyerData)
+TopUniqueBuyers
+```
+
+```{r}
+cor.test(TopUniqueBuyers$TokenAmount,TopUniqueBuyers$MarketCap, method = "pearson")
+```
+
+```{r}
+linearMod <- lm(TokenAmount ~ MarketCap, data=TopUniqueBuyers)  # build linear regression model on full data
+linearMod
+```
+```{r}
+summary(linearMod)
+```
+```{r}
+modelSummary <- summary(linearMod)  # capture model summary as an object
+modelCoeffs <- modelSummary$coefficients  # model coefficients
+beta.estimate <- modelCoeffs["MarketCap", "Estimate"]  # get beta estimate for speed
+std.error <- modelCoeffs["MarketCap", "Std. Error"]  # get std.error for speed
+t_value <- beta.estimate/std.error  # calc t statistic
+p_value <- 2*pt(-abs(t_value), df=nrow(TopUniqueBuyers)-ncol(TopUniqueBuyers))  # calc p Value
+f_statistic <- linearMod$fstatistic[1]  # fstatistic
+f <- summary(linearMod)$fstatistic  # parameters for model p-value calc
+model_p <- pf(f[1], f[2], f[3], lower=FALSE)
+#t_value
+p_value
+#f_statistic
+f
+
+#model_p
+
+```
+
+```{r}
+plot(linearMod)
+```
+
